@@ -290,6 +290,32 @@
         color: var(--ink-2);
       }
       .last-line strong { color: var(--ink); font-weight: 700; }
+
+      /* Session length */
+      .dur-card {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 12px 14px;
+        margin-top: 12px;
+      }
+      .dur-main {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .dur-label {
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .dur-wrap { flex: none; width: 132px; }
+      .dur-input { text-align: center; }
+      .dur-recent {
+        margin-top: 8px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
       .sets {
         display: grid;
         grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
@@ -611,7 +637,7 @@
         <button class="sched-reset" id="schedReset" type="button">Reset to default order</button>
       </section>
 
-      <p class="footnote">Check-offs, swaps, schedule changes including Off days, your edited sets and reps, and your weights are saved on this device only, in this browser. Every weight you type is remembered per move: the boxes prefill with your last weight for that move, and once you have logged it in an earlier week, the weights from last time show under the move name. Tap History on any move to see every dated session you have logged for it and how its top weight trends over time. Sets and reps are edited per move, per day, so changing one does not change the same move on another day.</p>
+      <p class="footnote">Check-offs, swaps, schedule changes including Off days, your edited sets and reps, and your weights are saved on this device only, in this browser. Every weight you type is remembered per move: the boxes prefill with your last weight for that move, and once you have logged it in an earlier week, the weights from last time show under the move name. Tap History on any move to see every dated session you have logged for it and how its top weight trends over time. Sets and reps are edited per move, per day, so changing one does not change the same move on another day. The Cardio day is in the schedule editor whenever you want it; cardio moves are logged in minutes instead of weight, and each one keeps a dated minutes history under its History button. Every training day also has a workout length box: type how many minutes the session took and it is saved with the date, your recent session lengths show under the box, and the week summary adds up the minutes you logged.</p>
     </main>
 
     <div class="overlay" id="overlay" hidden>
@@ -727,6 +753,14 @@
           { name: "Cross body curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
           { name: "Wide grip bend over row", sets: 4, reps: "12 reps", muscle: "Back" },
           { name: "Mountain climber", sets: 4, reps: "12 reps", muscle: "Core" }
+        ]},
+        { id: "cardio", name: "Cardio", focus: "Cardio, logged in minutes", exercises: [
+          { name: "Treadmill", sets: 1, reps: "Minutes", muscle: "Cardio", min: true },
+          { name: "Stationary bike", sets: 1, reps: "Minutes", muscle: "Cardio", min: true },
+          { name: "Elliptical", sets: 1, reps: "Minutes", muscle: "Cardio", min: true },
+          { name: "Rowing machine", sets: 1, reps: "Minutes", muscle: "Cardio", min: true },
+          { name: "Stair climber", sets: 1, reps: "Minutes", muscle: "Cardio", min: true },
+          { name: "Incline treadmill walk", sets: 1, reps: "Minutes", muscle: "Cardio", min: true }
         ]}
       ];
 
@@ -734,7 +768,7 @@
       var DAY_BY_ID = {};
       PROGRAM.forEach(function (d) { DAY_BY_ID[d.id] = d; });
       DAY_BY_ID[OFF_ID] = { id: OFF_ID, name: "Off", focus: "Rest day" };
-      var DEFAULT_SCHEDULE = PROGRAM.map(function (d) { return d.id; }); // index 0 = Monday
+      var DEFAULT_SCHEDULE = ["chest", "back", "legs", "shoulders", "arms", "push", "pull"]; // index 0 = Monday; Cardio is available in the schedule editor
       function isOff(dayId) { return dayId === OFF_ID; }
       function isValidDayId(dayId) { return dayId === OFF_ID || !!PROGRAM.find(function (d) { return d.id === dayId; }); }
 
@@ -747,7 +781,7 @@
         day.exercises.forEach(function (ex) {
           var k = exKey(ex.name);
           if (!LIB[k]) {
-            LIB[k] = { key: k, name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle, days: [] };
+            LIB[k] = { key: k, name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle, min: !!ex.min, days: [] };
             LIB_ORDER.push(k);
           }
           if (LIB[k].days.indexOf(day.name) === -1) LIB[k].days.push(day.name);
@@ -757,7 +791,7 @@
       function defaultSlots(dayId) {
         if (isOff(dayId) || !DAY_BY_ID[dayId] || !DAY_BY_ID[dayId].exercises) return [];
         return DAY_BY_ID[dayId].exercises.map(function (ex) {
-          return { key: exKey(ex.name), name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle };
+          return { key: exKey(ex.name), name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle, min: !!ex.min };
         });
       }
       function ensureSlots(dayId) {
@@ -767,7 +801,7 @@
         }
         // Return a shallow copy of the array with copied slot objects so edits are isolated
         return state.days[dayId].map(function (s) {
-          return { key: s.key, name: s.name, sets: s.sets, reps: s.reps, muscle: s.muscle };
+          return { key: s.key, name: s.name, sets: s.sets, reps: s.reps, muscle: s.muscle, min: !!s.min };
         });
       }
 
@@ -802,7 +836,11 @@
         weights: {},     // dayId -> { "slotIdx:exKey": [string, ...] }
         lastWeights: {}, // exKey -> [string, ...] last weight logged per set
         weightHistory: {}, // exKey -> { weekKey: [string, ...] } weights logged per week, last 8 weeks kept
-        weightLog: {}    // exKey -> [{ d: "YYYY-MM-DD", w: [string, ...] }] dated sessions, ascending, last 60 kept
+        weightLog: {},    // exKey -> [{ d: "YYYY-MM-DD", w: [string, ...] }] dated sessions, ascending, last 60 kept
+        durations: {},   // dayId -> minutes string logged for that day this week
+        durationLog: [], // [{ d: "YYYY-MM-DD", day: dayId, min: number }] dated session lengths, last 90 kept
+        minutes: {},     // dayId -> { "slotIdx:exKey": [string, ...] } minutes per cardio move this week
+        minLog: {}       // exKey -> [{ d: "YYYY-MM-DD", m: [string, ...] }] dated cardio minutes, last 60 kept
       };
       function save() {
         try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
@@ -818,9 +856,13 @@
             if (s.lastWeights && typeof s.lastWeights === "object") state.lastWeights = s.lastWeights;
             if (s.weightHistory && typeof s.weightHistory === "object") state.weightHistory = s.weightHistory;
             if (s.weightLog && typeof s.weightLog === "object") state.weightLog = s.weightLog;
+            if (Array.isArray(s.durationLog)) state.durationLog = s.durationLog;
+            if (s.minLog && typeof s.minLog === "object") state.minLog = s.minLog;
             if (s.weekKey === state.weekKey) {
               if (s.done && typeof s.done === "object") state.done = s.done;
               if (s.weights && typeof s.weights === "object") state.weights = s.weights;
+              if (s.durations && typeof s.durations === "object") state.durations = s.durations;
+              if (s.minutes && typeof s.minutes === "object") state.minutes = s.minutes;
             }
           }
         } catch (e) { /* start fresh */ }
@@ -912,6 +954,71 @@
         while (log.length > 60) log.shift();
         state.weightLog[key] = log;
       }
+      function slotIsMin(slot) { return !!(slot && (slot.min || (LIB[slot.key] && LIB[slot.key].min))); }
+      function minVal(dayId, sIdx, key, setIdx) {
+        var w = (state.minutes[dayId] || {})[slotId(sIdx, key)];
+        if (Array.isArray(w) && w[setIdx] !== undefined && w[setIdx] !== null) return w[setIdx];
+        var log = state.minLog[key];
+        if (Array.isArray(log) && log.length) {
+          var lastArr = log[log.length - 1].m;
+          if (Array.isArray(lastArr)) {
+            if (lastArr[setIdx]) return lastArr[setIdx];
+            for (var i = lastArr.length - 1; i >= 0; i--) if (lastArr[i]) return lastArr[i];
+          }
+        }
+        return "";
+      }
+      function prevSessionMinutes(key) {
+        var log = state.minLog[key];
+        if (!Array.isArray(log)) return null;
+        var today = todayStr();
+        for (var i = log.length - 1; i >= 0; i--) {
+          if (!log[i] || log[i].d >= today) continue;
+          var vals = cleanWeights(log[i].m);
+          if (vals.length) return vals;
+        }
+        return null;
+      }
+      function recordMinLog(key, mArr) {
+        var snap = (Array.isArray(mArr) ? mArr : []).map(function (v) { return String(v == null ? "" : v).trim(); });
+        var log = state.minLog[key];
+        if (!Array.isArray(log)) log = [];
+        var t = todayStr();
+        var idx = -1;
+        for (var i = 0; i < log.length; i++) { if (log[i] && log[i].d === t) { idx = i; break; } }
+        if (snap.some(function (v) { return v !== ""; })) {
+          if (idx >= 0) log[idx].m = snap; else log.push({ d: t, m: snap });
+        } else if (idx >= 0) {
+          log.splice(idx, 1);
+        }
+        log.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+        while (log.length > 60) log.shift();
+        state.minLog[key] = log;
+      }
+      function recordDuration(dayId, raw) {
+        var n = parseFloat(raw);
+        var t = todayStr();
+        var log = state.durationLog;
+        var idx = -1;
+        for (var i = 0; i < log.length; i++) { if (log[i] && log[i].d === t && log[i].day === dayId) { idx = i; break; } }
+        if (!isNaN(n) && n > 0) {
+          if (idx >= 0) log[idx].min = n; else log.push({ d: t, day: dayId, min: n });
+        } else if (idx >= 0) {
+          log.splice(idx, 1);
+        }
+        log.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+        while (log.length > 90) log.shift();
+        state.durationLog = log;
+      }
+      function recentDurations(dayId) {
+        var t = todayStr();
+        var out = [];
+        for (var i = state.durationLog.length - 1; i >= 0 && out.length < 3; i--) {
+          var e = state.durationLog[i];
+          if (e && e.day === dayId && e.d < t && e.min > 0) out.push(e);
+        }
+        return out;
+      }
       function dayProgress(dayId) {
         if (isOff(dayId)) return { done: 0, total: 0 };
         var slots = slotsFor(dayId);
@@ -948,6 +1055,13 @@
         var countsText = done + " of " + total + " sets done this week";
         if (offCount) countsText += " · " + offCount + (offCount === 1 ? " rest day" : " rest days");
         if (!total) countsText = "No workouts scheduled this week";
+        var totalMin = 0;
+        state.schedule.forEach(function (dayId) {
+          if (isOff(dayId)) return;
+          var mv = parseFloat(state.durations[dayId]);
+          if (!isNaN(mv) && mv > 0) totalMin += mv;
+        });
+        if (totalMin > 0) countsText += " · " + Math.round(totalMin) + " min logged";
         document.getElementById("weekCounts").textContent = countsText;
         document.getElementById("weekBar").style.width = pct + "%";
       }
@@ -1004,32 +1118,54 @@
           '<div class="focus">' + esc(day.focus) + "</div>" +
           (state.days[dayId] ? '<button class="reset-day" id="resetDayBtn" type="button">Reset day to original moves, sets &amp; reps</button>' : "") +
           "</div>" +
-          '<div class="day-progress">' + p.done + " / " + p.total + " sets</div></div>";
+          '<div class="day-progress">' + p.done + " / " + p.total + (dayId === "cardio" ? " moves" : " sets") + "</div></div>";
+
+        var durVal = state.durations[dayId] || "";
+        var rec = recentDurations(dayId);
+        html += '<div class="dur-card"><div class="dur-main">' +
+          '<label class="dur-label" for="durInput">Workout length</label>' +
+          '<div class="w-wrap dur-wrap"><input class="w-input dur-input" id="durInput" type="text" inputmode="decimal" autocomplete="off" placeholder="0" data-duration="1" value="' + esc(durVal) + '" aria-label="Workout length in minutes" /><span class="w-unit">min</span></div>' +
+          "</div>" +
+          (rec.length ? '<div class="dur-recent">Recent: ' + rec.map(function (e) { return esc(shortDate(e.d)) + " · " + fmtNum(e.min) + " min"; }).join(", ") + "</div>" : "") +
+          "</div>";
 
         slots.forEach(function (slot, i) {
           var done = doneArr(dayId, i, slot.key, slot.sets);
-          var prevW = prevSessionWeights(slot.key);
+          var isMin = slotIsMin(slot);
+          var prevW = isMin ? null : prevSessionWeights(slot.key);
+          var prevM = isMin ? prevSessionMinutes(slot.key) : null;
+          var metaText = isMin
+            ? (slot.sets > 1 ? slot.sets + " intervals · minutes each" : "Logged in minutes")
+            : slot.sets + " sets × " + esc(slot.reps);
           html += '<article class="ex">' +
             '<div class="ex-top"><div>' +
             '<div class="ex-name">' + esc(slot.name) + "</div>" +
-            '<div class="ex-meta"><span>' + slot.sets + " sets × " + esc(slot.reps) + '</span><span class="tag">' + esc(slot.muscle) + "</span></div>" +
+            '<div class="ex-meta"><span>' + metaText + '</span><span class="tag">' + esc(slot.muscle) + "</span></div>" +
             "</div>" +
             '<div class="ex-actions"><button class="edit-btn" type="button" data-edit="' + i + '">Edit</button>' +
             '<button class="hist-btn" type="button" data-history="' + i + '">History</button>' +
             '<button class="swap-btn" type="button" data-swap="' + i + '">Swap</button></div>' +
             "</div>" +
             (prevW ? '<div class="last-line">Last time: <strong>' + esc(prevW.join(" · ")) + " lb</strong></div>" : "") +
+            (prevM ? '<div class="last-line">Last time: <strong>' + esc(prevM.join(" · ")) + " min</strong></div>" : "") +
             '<div class="sets">';
           for (var s = 0; s < slot.sets; s++) {
             var isDone = !!done[s];
-            var w = weightVal(dayId, i, slot.key, s);
+            var toggleLabel = isMin && slot.sets === 1 ? "Done" : "Set " + (s + 1);
             html += '<div class="set' + (isDone ? " done" : "") + '">' +
-              '<button class="set-toggle" type="button" data-toggle="' + i + ":" + s + '" aria-pressed="' + isDone + '" aria-label="Set ' + (s + 1) + " done\">" +
+              '<button class="set-toggle" type="button" data-toggle="' + i + ":" + s + '" aria-pressed="' + isDone + '" aria-label="' + toggleLabel + ' done">' +
               '<span class="box"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.5 4.8 9 10 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' +
-              '<span class="set-num">Set ' + (s + 1) + "</span></button>" +
-              '<div class="w-wrap"><input class="w-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Add" ' +
-              'data-weight="' + i + ":" + s + '" value="' + esc(w) + '" aria-label="Weight for set ' + (s + 1) + ' of ' + esc(slot.name) + '" /><span class="w-unit">lb</span></div>' +
-              "</div>";
+              '<span class="set-num">' + toggleLabel + "</span></button>";
+            if (isMin) {
+              var mv2 = minVal(dayId, i, slot.key, s);
+              html += '<div class="w-wrap"><input class="w-input" type="text" inputmode="decimal" autocomplete="off" placeholder="0" ' +
+                'data-minutes="' + i + ":" + s + '" value="' + esc(mv2) + '" aria-label="Minutes for ' + esc(slot.name) + '" /><span class="w-unit">min</span></div>';
+            } else {
+              var w = weightVal(dayId, i, slot.key, s);
+              html += '<div class="w-wrap"><input class="w-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Add" ' +
+                'data-weight="' + i + ":" + s + '" value="' + esc(w) + '" aria-label="Weight for set ' + (s + 1) + ' of ' + esc(slot.name) + '" /><span class="w-unit">lb</span></div>';
+            }
+            html += "</div>";
           }
           html += "</div></article>";
         });
@@ -1121,6 +1257,32 @@
       });
 
       panelEl.addEventListener("input", function (ev) {
+        var dayId0 = state.schedule[selWeekday];
+        if (isOff(dayId0)) return;
+        var dur = ev.target.closest("[data-duration]");
+        if (dur) {
+          state.durations[dayId0] = dur.value.trim();
+          recordDuration(dayId0, dur.value);
+          save();
+          renderSummary();
+          return;
+        }
+        var minInp = ev.target.closest("[data-minutes]");
+        if (minInp) {
+          var mparts = minInp.getAttribute("data-minutes").split(":");
+          var msIdx = parseInt(mparts[0], 10), mSetIdx = parseInt(mparts[1], 10);
+          var mslot = slotsFor(dayId0)[msIdx];
+          if (!mslot) return;
+          if (!state.minutes[dayId0]) state.minutes[dayId0] = {};
+          var mArr = state.minutes[dayId0][slotId(msIdx, mslot.key)];
+          if (!Array.isArray(mArr)) mArr = [];
+          while (mArr.length < mslot.sets) mArr.push("");
+          mArr[mSetIdx] = minInp.value.trim();
+          state.minutes[dayId0][slotId(msIdx, mslot.key)] = mArr;
+          recordMinLog(mslot.key, mArr);
+          save();
+          return;
+        }
         var inp = ev.target.closest("[data-weight]");
         if (!inp) return;
         var dayId = state.schedule[selWeekday];
@@ -1174,7 +1336,7 @@
             '<span class="tag">' + esc(lib.muscle) + "</span>";
           b.addEventListener("click", function () {
             var slots = ensureSlots(swapCtx.dayId);
-            slots[swapCtx.slotIdx] = { key: lib.key, name: lib.name, sets: lib.sets, reps: lib.reps, muscle: lib.muscle };
+            slots[swapCtx.slotIdx] = { key: lib.key, name: lib.name, sets: lib.sets, reps: lib.reps, muscle: lib.muscle, min: !!lib.min };
             state.days[swapCtx.dayId] = slots;
             save();
             closeSwap();
@@ -1311,6 +1473,33 @@
         var slot = slotsFor(dayId)[slotIdx];
         if (!slot) return;
         document.getElementById("histTitle").textContent = "History: " + slot.name;
+        if (slotIsMin(slot)) {
+          var mlog = (Array.isArray(state.minLog[slot.key]) ? state.minLog[slot.key] : [])
+            .filter(function (e) { return e && cleanWeights(e.m).length; });
+          var mbody = document.getElementById("histBody");
+          if (!mlog.length) {
+            document.getElementById("histSub").textContent = slot.muscle + " · No minutes logged yet";
+            mbody.innerHTML = '<p class="hist-empty">No minutes logged for this move yet. Type how long you went into the minutes box and it is saved here with the date, so you can watch your cardio time build.</p>';
+          } else {
+            var bestMin = null;
+            mlog.forEach(function (e) {
+              cleanWeights(e.m).forEach(function (v) {
+                var n = parseFloat(v);
+                if (!isNaN(n) && (bestMin === null || n > bestMin)) bestMin = n;
+              });
+            });
+            document.getElementById("histSub").textContent = slot.muscle + " · " + mlog.length +
+              (mlog.length === 1 ? " session" : " sessions") + (bestMin !== null ? " · Longest " + fmtNum(bestMin) + " min" : "");
+            var mhtml = '<div class="hist-list">';
+            for (var mi = mlog.length - 1; mi >= 0; mi--) {
+              mhtml += '<div class="hist-row"><div class="hist-date">' + esc(fmtDate(mlog[mi].d)) + "</div>" +
+                '<div class="hist-vals">' + esc(cleanWeights(mlog[mi].m).join(" · ")) + " min</div></div>";
+            }
+            mbody.innerHTML = mhtml + "</div>";
+          }
+          historyOverlay.hidden = false;
+          return;
+        }
         var log = (Array.isArray(state.weightLog[slot.key]) ? state.weightLog[slot.key] : [])
           .filter(function (e) { return e && cleanWeights(e.w).length; });
         var body = document.getElementById("histBody");
@@ -1369,6 +1558,8 @@
         resetWeekBtn.classList.remove("danger-armed");
         state.done = {};
         state.weights = {};
+        state.durations = {};
+        state.minutes = {};
         save();
         renderAll();
       });
