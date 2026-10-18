@@ -1,0 +1,1379 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="utf-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover" />
+    <meta name="color-scheme" content="light dark" />
+    <meta name="apple-mobile-web-app-capable" content="yes" />
+    <meta name="mobile-web-app-capable" content="yes" />
+    <meta name="apple-mobile-web-app-status-bar-style" content="default" />
+    <link rel="icon" href="data:," />
+    <title>Workout Tracker</title>
+    <style>
+      :root {
+        color-scheme: light dark;
+        --bg: #f4f3ef;
+        --surface: #ffffff;
+        --surface-2: #eceae3;
+        --ink: #191a1c;
+        --ink-2: #5b5e63;
+        --line: #ddd9cf;
+        --accent: #e8490f;
+        --accent-ink: #ffffff;
+        --accent-soft: #fdeee7;
+        --done: #1d7a3a;
+        --done-soft: #e3f2e6;
+        --radius: 14px;
+      }
+      @media (prefers-color-scheme: dark) {
+        :root {
+          --bg: #101012;
+          --surface: #1c1c1f;
+          --surface-2: #26262a;
+          --ink: #f2f1ec;
+          --ink-2: #a3a6ab;
+          --line: #333338;
+          --accent: #ff6a35;
+          --accent-ink: #1a0d06;
+          --accent-soft: #38200f;
+          --done: #4cc06d;
+          --done-soft: #17301e;
+        }
+      }
+      * { box-sizing: border-box; }
+      html { -webkit-text-size-adjust: 100%; }
+      body {
+        margin: 0;
+        background: var(--bg);
+        color: var(--ink);
+        font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, Helvetica, Arial, sans-serif;
+        padding: env(safe-area-inset-top) 0 env(safe-area-inset-bottom);
+      }
+      main {
+        max-width: 640px;
+        margin: 0 auto;
+        padding: 14px 14px 56px;
+      }
+      button { font: inherit; color: inherit; touch-action: manipulation; }
+      input, select { font: inherit; color: inherit; }
+
+      /* Week summary */
+      .summary {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 16px;
+      }
+      .summary-top {
+        display: flex;
+        align-items: baseline;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .summary .week-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-2);
+        text-transform: uppercase;
+        letter-spacing: 0.06em;
+      }
+      .summary .pct {
+        font-size: 34px;
+        font-weight: 800;
+        letter-spacing: -0.02em;
+        line-height: 1;
+      }
+      .summary .counts {
+        margin-top: 4px;
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      .bar {
+        margin-top: 12px;
+        height: 10px;
+        border-radius: 5px;
+        background: var(--surface-2);
+        overflow: hidden;
+      }
+      .bar > div {
+        height: 100%;
+        background: var(--accent);
+        border-radius: 5px;
+        transition: width 0.25s ease;
+      }
+
+      /* Weekday strip */
+      .strip {
+        display: grid;
+        grid-template-columns: repeat(7, 1fr);
+        gap: 6px;
+        margin-top: 12px;
+      }
+      .cell {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 8px 2px 7px;
+        text-align: center;
+        cursor: pointer;
+        min-height: 74px;
+        display: flex;
+        flex-direction: column;
+        align-items: center;
+        gap: 2px;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .cell .wd {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.05em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+      }
+      .cell .dn {
+        font-size: 12px;
+        font-weight: 700;
+        line-height: 1.15;
+      }
+      .cell .dp {
+        font-size: 11px;
+        color: var(--ink-2);
+        margin-top: auto;
+      }
+      .cell.today .wd { color: var(--accent); }
+      .cell.selected {
+        border-color: var(--accent);
+        box-shadow: 0 0 0 1px var(--accent) inset;
+        background: var(--accent-soft);
+      }
+      .cell.complete .dp { color: var(--done); font-weight: 700; }
+      .cell.off {
+        background: var(--surface-2);
+        border-style: dashed;
+      }
+      .cell.off .dn { color: var(--ink-2); }
+      .cell.off .dp { color: var(--ink-2); font-weight: 600; }
+
+      /* Day panel */
+      .day-head {
+        position: sticky;
+        top: env(safe-area-inset-top);
+        z-index: 30;
+        background: var(--bg);
+        margin-top: 12px;
+        padding: 10px 0;
+        border-bottom: 1px solid var(--line);
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 12px;
+      }
+      .day-head h2 {
+        margin: 0;
+        font-size: 26px;
+        font-weight: 800;
+        letter-spacing: -0.01em;
+      }
+      .day-head .focus {
+        margin-top: 2px;
+        font-size: 14px;
+        color: var(--ink-2);
+      }
+      .day-head .day-progress {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-2);
+        white-space: nowrap;
+        padding-top: 8px;
+      }
+      .reset-day {
+        margin-top: 8px;
+        background: none;
+        border: none;
+        padding: 4px 0;
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--accent);
+        cursor: pointer;
+      }
+
+      .ex {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 14px;
+        margin-top: 12px;
+      }
+      .ex-top {
+        display: flex;
+        align-items: flex-start;
+        justify-content: space-between;
+        gap: 10px;
+      }
+      .ex-name {
+        font-size: 16px;
+        font-weight: 700;
+        line-height: 1.25;
+      }
+      .ex-meta {
+        margin-top: 3px;
+        font-size: 13px;
+        color: var(--ink-2);
+        display: flex;
+        align-items: center;
+        gap: 8px;
+        flex-wrap: wrap;
+      }
+      .tag {
+        font-size: 11px;
+        font-weight: 700;
+        letter-spacing: 0.04em;
+        text-transform: uppercase;
+        background: var(--surface-2);
+        border-radius: 20px;
+        padding: 2px 8px;
+        color: var(--ink-2);
+      }
+      .ex-actions {
+        flex: none;
+        display: flex;
+        gap: 6px;
+      }
+      .swap-btn, .edit-btn, .hist-btn {
+        flex: none;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 44px;
+      }
+      .swap-btn:active, .edit-btn:active, .hist-btn:active { background: var(--accent-soft); }
+      .ex-top > div:first-child { min-width: 0; }
+      .rest-panel {
+        background: var(--surface);
+        border: 1px dashed var(--line);
+        border-radius: var(--radius);
+        padding: 28px 18px;
+        margin-top: 14px;
+        text-align: center;
+      }
+      .rest-panel .rest-title {
+        font-size: 20px;
+        font-weight: 800;
+        margin: 0;
+      }
+      .rest-panel .rest-sub {
+        margin: 8px auto 0;
+        font-size: 14px;
+        color: var(--ink-2);
+        line-height: 1.5;
+        max-width: 420px;
+      }
+      .rest-panel .rest-action {
+        margin-top: 16px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 10px;
+        padding: 10px 14px;
+        font-size: 14px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 44px;
+      }
+
+      .last-line {
+        margin-top: 10px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .last-line strong { color: var(--ink); font-weight: 700; }
+      .sets {
+        display: grid;
+        grid-template-columns: repeat(auto-fill, minmax(104px, 1fr));
+        gap: 8px;
+        margin-top: 12px;
+      }
+      .set {
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 8px;
+        background: var(--bg);
+      }
+      .set.done {
+        border-color: var(--done);
+        background: var(--done-soft);
+      }
+      .set-toggle {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        gap: 7px;
+        background: none;
+        border: none;
+        padding: 4px 0 8px;
+        cursor: pointer;
+        min-height: 44px;
+        -webkit-tap-highlight-color: transparent;
+      }
+      .box {
+        flex: none;
+        width: 26px;
+        height: 26px;
+        border-radius: 8px;
+        border: 2px solid var(--ink-2);
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        color: transparent;
+      }
+      .set.done .box {
+        background: var(--done);
+        border-color: var(--done);
+        color: #fff;
+      }
+      .set-num {
+        font-size: 13px;
+        font-weight: 700;
+        color: var(--ink-2);
+      }
+      .set.done .set-num { color: var(--done); }
+      .w-wrap {
+        display: flex;
+        align-items: center;
+        gap: 4px;
+      }
+      .w-input {
+        width: 100%;
+        min-width: 0;
+        border: 1px solid var(--line);
+        border-radius: 8px;
+        background: var(--surface);
+        padding: 10px 8px;
+        min-height: 44px;
+        font-size: 16px;
+        font-weight: 600;
+      }
+      .w-input::placeholder { color: var(--ink-2); font-weight: 500; }
+      .w-unit { font-size: 12px; color: var(--ink-2); font-weight: 600; }
+
+      /* Actions + schedule */
+      .actions {
+        display: flex;
+        gap: 10px;
+        margin-top: 24px;
+        flex-wrap: wrap;
+      }
+      .action-btn {
+        flex: 1;
+        min-width: 150px;
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: 12px;
+        padding: 13px 12px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 52px;
+      }
+      .action-btn.danger-armed {
+        border-color: var(--accent);
+        color: var(--accent);
+        background: var(--accent-soft);
+      }
+      .schedule {
+        background: var(--surface);
+        border: 1px solid var(--line);
+        border-radius: var(--radius);
+        padding: 6px 16px 14px;
+        margin-top: 12px;
+      }
+      .schedule h3 {
+        font-size: 17px;
+        margin: 14px 0 4px;
+      }
+      .schedule .hint {
+        font-size: 13px;
+        color: var(--ink-2);
+        margin: 0 0 8px;
+      }
+      .sched-row {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 12px;
+        padding: 9px 0;
+        border-top: 1px solid var(--line);
+      }
+      .sched-row .wd-name {
+        font-size: 15px;
+        font-weight: 700;
+      }
+      .sched-row .wd-name.today { color: var(--accent); }
+      .sched-row select {
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 9px;
+        padding: 9px 10px;
+        font-size: 16px;
+        font-weight: 600;
+        min-height: 48px;
+        max-width: 58%;
+      }
+      .sched-reset {
+        margin-top: 12px;
+        background: none;
+        border: none;
+        padding: 6px 0;
+        font-size: 14px;
+        font-weight: 700;
+        color: var(--accent);
+        cursor: pointer;
+      }
+      .footnote {
+        margin-top: 22px;
+        font-size: 13px;
+        color: var(--ink-2);
+        line-height: 1.5;
+      }
+
+      /* Swap sheet */
+      .overlay {
+        position: fixed;
+        inset: 0;
+        background: rgba(0, 0, 0, 0.45);
+        z-index: 40;
+        display: flex;
+        align-items: flex-end;
+        justify-content: center;
+      }
+      .sheet {
+        background: var(--surface);
+        width: 100%;
+        max-width: 640px;
+        max-height: 82vh;
+        overflow-y: auto;
+        border-radius: 18px 18px 0 0;
+        padding: 18px 16px calc(18px + env(safe-area-inset-bottom));
+      }
+      .grab {
+        width: 40px;
+        height: 5px;
+        border-radius: 3px;
+        background: var(--line);
+        margin: 0 auto 14px;
+      }
+      .sheet h3 { margin: 0; font-size: 19px; }
+      .sheet .sub {
+        margin: 4px 0 10px;
+        font-size: 13px;
+        color: var(--ink-2);
+      }
+      .opt {
+        width: 100%;
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 10px;
+        text-align: left;
+        background: var(--bg);
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 12px;
+        margin-top: 8px;
+        cursor: pointer;
+        min-height: 56px;
+      }
+      .opt .o-name { font-size: 15px; font-weight: 700; line-height: 1.25; }
+      .opt .o-meta { font-size: 12px; color: var(--ink-2); margin-top: 2px; }
+      .sheet .cancel {
+        width: 100%;
+        margin-top: 14px;
+        background: var(--surface-2);
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        padding: 13px;
+        font-size: 15px;
+        font-weight: 700;
+        cursor: pointer;
+        min-height: 48px;
+      }
+      .field { margin-top: 16px; }
+      .field label {
+        display: block;
+        font-size: 13px;
+        font-weight: 700;
+        letter-spacing: 0.02em;
+        text-transform: uppercase;
+        color: var(--ink-2);
+        margin-bottom: 7px;
+      }
+      .field .hint-text {
+        font-size: 12px;
+        color: var(--ink-2);
+        margin-top: 6px;
+        line-height: 1.4;
+        text-transform: none;
+        letter-spacing: 0;
+        font-weight: 500;
+      }
+      .sets-edit {
+        display: flex;
+        align-items: center;
+        gap: 10px;
+      }
+      .step-btn {
+        width: 48px;
+        height: 48px;
+        flex: none;
+        border-radius: 11px;
+        border: 1px solid var(--line);
+        background: var(--bg);
+        font-size: 22px;
+        font-weight: 800;
+        cursor: pointer;
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+      }
+      .step-btn:active { background: var(--accent-soft); }
+      .sets-input, .reps-input {
+        width: 100%;
+        border: 1px solid var(--line);
+        border-radius: 11px;
+        background: var(--bg);
+        padding: 12px;
+        font-size: 17px;
+        font-weight: 700;
+        text-align: center;
+      }
+      .reps-input { text-align: left; font-weight: 600; }
+      .sheet .save-btn {
+        width: 100%;
+        margin-top: 20px;
+        background: var(--accent);
+        color: var(--accent-ink);
+        border: 1px solid var(--accent);
+        border-radius: 11px;
+        padding: 13px;
+        font-size: 15px;
+        font-weight: 800;
+        cursor: pointer;
+        min-height: 48px;
+      }
+      /* Weight history sheet */
+      .chart-label {
+        font-size: 13px;
+        font-weight: 600;
+        color: var(--ink-2);
+        margin-top: 14px;
+      }
+      .chart { width: 100%; height: auto; display: block; margin-top: 4px; }
+      .chart .line { fill: none; stroke: var(--accent); stroke-width: 2.5; stroke-linejoin: round; stroke-linecap: round; }
+      .chart .dot { fill: var(--accent); }
+      .chart .clabel { fill: var(--ink-2); font-size: 10px; font-weight: 600; }
+      .chart .cval { fill: var(--ink); font-size: 11px; font-weight: 800; }
+      .hist-list { margin-top: 14px; border-top: 1px solid var(--line); }
+      .hist-row { padding: 10px 0; border-bottom: 1px solid var(--line); }
+      .hist-date { font-size: 13px; font-weight: 700; color: var(--ink-2); }
+      .hist-vals { font-size: 16px; font-weight: 700; margin-top: 2px; }
+      .hist-top { font-size: 12px; font-weight: 700; color: var(--accent); margin-top: 2px; }
+      .hist-empty { font-size: 14px; color: var(--ink-2); line-height: 1.55; margin: 10px 0 4px; }
+      [hidden] { display: none !important; }
+    </style>
+  </head>
+  <body>
+    <main>
+      <section class="summary" aria-label="Week progress">
+        <div class="summary-top">
+          <span class="week-label" id="weekLabel">This week</span>
+          <span class="pct" id="weekPct">0%</span>
+        </div>
+        <div class="counts" id="weekCounts"></div>
+        <div class="bar"><div id="weekBar" style="width:0%"></div></div>
+      </section>
+
+      <nav class="strip" id="strip" aria-label="Week schedule"></nav>
+
+      <section id="dayPanel" aria-live="polite"></section>
+
+      <div class="actions">
+        <button class="action-btn" id="schedBtn" type="button">Edit weekly schedule</button>
+        <button class="action-btn" id="resetWeekBtn" type="button">Reset this week</button>
+      </div>
+
+      <section class="schedule" id="schedulePanel" hidden>
+        <h3>Weekly schedule</h3>
+        <p class="hint">Pick which training day lands on each weekday, or choose Off for a rest day with no workout. You can have more than one Off day. Picking a training day that is already placed swaps the two weekdays.</p>
+        <div id="schedRows"></div>
+        <button class="sched-reset" id="schedReset" type="button">Reset to default order</button>
+      </section>
+
+      <p class="footnote">Check-offs, swaps, schedule changes including Off days, your edited sets and reps, and your weights are saved on this device only, in this browser. Every weight you type is remembered per move: the boxes prefill with your last weight for that move, and once you have logged it in an earlier week, the weights from last time show under the move name. Tap History on any move to see every dated session you have logged for it and how its top weight trends over time. Sets and reps are edited per move, per day, so changing one does not change the same move on another day.</p>
+    </main>
+
+    <div class="overlay" id="overlay" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="sheetTitle">
+        <div class="grab" aria-hidden="true"></div>
+        <h3 id="sheetTitle">Swap move</h3>
+        <p class="sub" id="sheetSub"></p>
+        <div id="sheetOpts"></div>
+        <button class="cancel" id="sheetCancel" type="button">Cancel</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="editOverlay" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="editTitle">
+        <div class="grab" aria-hidden="true"></div>
+        <h3 id="editTitle">Edit move</h3>
+        <p class="sub" id="editSub"></p>
+        <div class="field">
+          <label for="editSets">Sets</label>
+          <div class="sets-edit">
+            <button class="step-btn" id="setsMinus" type="button" aria-label="Decrease sets">−</button>
+            <input class="sets-input" id="editSets" type="number" inputmode="numeric" min="1" max="20" step="1" />
+            <button class="step-btn" id="setsPlus" type="button" aria-label="Increase sets">+</button>
+          </div>
+          <p class="hint-text">Sets are independent of reps. Changing sets only changes how many sets show for this move on this day.</p>
+        </div>
+        <div class="field">
+          <label for="editReps">Reps</label>
+          <input class="reps-input" id="editReps" type="text" autocomplete="off" placeholder="e.g. 12 reps, 8 each arm, 12 ladder" />
+          <p class="hint-text">Reps are independent of sets and of the move itself. Type exactly how you want it to read.</p>
+        </div>
+        <button class="save-btn" id="editSave" type="button">Save sets &amp; reps</button>
+        <button class="cancel" id="editCancel" type="button">Cancel</button>
+      </div>
+    </div>
+
+    <div class="overlay" id="historyOverlay" hidden>
+      <div class="sheet" role="dialog" aria-modal="true" aria-labelledby="histTitle">
+        <div class="grab" aria-hidden="true"></div>
+        <h3 id="histTitle">Weight history</h3>
+        <p class="sub" id="histSub"></p>
+        <div id="histBody"></div>
+        <button class="cancel" id="histClose" type="button">Done</button>
+      </div>
+    </div>
+
+    <script>
+      "use strict";
+
+      /* ---------- Program (exact moves, sets, reps; muscle tagged per move) ---------- */
+      var PROGRAM = [
+        { id: "chest", name: "Chest", focus: "Chest", exercises: [
+          { name: "Incline fly", sets: 5, reps: "8 reps", muscle: "Chest" },
+          { name: "Chest press", sets: 5, reps: "8 reps", muscle: "Chest" },
+          { name: "Pushup", sets: 6, reps: "12 ladder", muscle: "Chest" },
+          { name: "Incline chest press", sets: 5, reps: "8 reps", muscle: "Chest" },
+          { name: "Chest fly", sets: 5, reps: "8 reps", muscle: "Chest" },
+          { name: "Hex press (both close on chest)", sets: 5, reps: "12 ladder", muscle: "Chest" },
+          { name: "Chest single arm cable fly", sets: 3, reps: "8 each arm", muscle: "Chest" },
+          { name: "Incline push up", sets: 3, reps: "8 reps", muscle: "Chest" }
+        ]},
+        { id: "back", name: "Back", focus: "Back", exercises: [
+          { name: "Chest Support Single Arm Rows (leg and same arm on bench)", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "Pullovers (laying on bench)", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "Hip fly (bend over, arms go behind)", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Chest Supported Fly (bench on 45, chest on it)", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Reverse Rows (underhand, elbow drive)", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "RDL (squeeze glute)", sets: 4, reps: "12 reps", muscle: "Legs" }
+        ]},
+        { id: "legs", name: "Legs", focus: "Legs", exercises: [
+          { name: "Dual Dumbbell Sumo Squat", sets: 4, reps: "12 reps", muscle: "Legs" },
+          { name: "Single RDL (legs staggered, both legs)", sets: 4, reps: "12 reps", muscle: "Legs" },
+          { name: "Dead stop Squat pull", sets: 4, reps: "12 reps (6 on each arm)", muscle: "Legs" },
+          { name: "Laying hip thrusts", sets: 4, reps: "12 reps", muscle: "Legs" },
+          { name: "Seated Squat (butt on bench then go up)", sets: 4, reps: "12 reps", muscle: "Legs" },
+          { name: "Squat", sets: 4, reps: "12 reps", muscle: "Legs" }
+        ]},
+        { id: "shoulders", name: "Shoulders", focus: "Shoulders", exercises: [
+          { name: "Arnold Presses", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Dual Front Raise", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Shoulder Press", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Side Raises", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Upright Row", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Rear Delt Fly", sets: 4, reps: "12 reps", muscle: "Shoulders" }
+        ]},
+        { id: "arms", name: "Arms", focus: "Biceps and triceps", exercises: [
+          { name: "Dual Curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Cross Body/ Hammer Curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Dual Center Curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Overhead tricep", sets: 4, reps: "12 reps", muscle: "Triceps" },
+          { name: "Tricep Exts / Dips", sets: 4, reps: "12 reps", muscle: "Triceps" }
+        ]},
+        { id: "push", name: "Push", focus: "Chest, shoulders, and triceps", exercises: [
+          { name: "Pushup", sets: 6, reps: "12 ladder", muscle: "Chest" },
+          { name: "Tricep pushups", sets: 4, reps: "12 reps", muscle: "Triceps" },
+          { name: "Chest Press", sets: 4, reps: "12 reps", muscle: "Chest" },
+          { name: "Shoulder Press", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Incline Push Up", sets: 4, reps: "12 reps", muscle: "Chest" },
+          { name: "Dual Front Raise", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Overhead Tricep", sets: 4, reps: "12 reps", muscle: "Triceps" },
+          { name: "Dips", sets: 4, reps: "12 reps", muscle: "Triceps" }
+        ]},
+        { id: "pull", name: "Pull", focus: "Back, biceps, and core", exercises: [
+          { name: "Bicep curls", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Bend over row", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "Hammer curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Renegade row", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "Scissor kicks", sets: 4, reps: "12 reps", muscle: "Core" },
+          { name: "Reverse fly", sets: 4, reps: "12 reps", muscle: "Shoulders" },
+          { name: "Plank", sets: 4, reps: "12 reps", muscle: "Core" },
+          { name: "Zottman curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Bicycle", sets: 4, reps: "12 reps", muscle: "Core" },
+          { name: "Cross body curl", sets: 4, reps: "12 reps", muscle: "Biceps" },
+          { name: "Wide grip bend over row", sets: 4, reps: "12 reps", muscle: "Back" },
+          { name: "Mountain climber", sets: 4, reps: "12 reps", muscle: "Core" }
+        ]}
+      ];
+
+      var OFF_ID = "off";
+      var DAY_BY_ID = {};
+      PROGRAM.forEach(function (d) { DAY_BY_ID[d.id] = d; });
+      DAY_BY_ID[OFF_ID] = { id: OFF_ID, name: "Off", focus: "Rest day" };
+      var DEFAULT_SCHEDULE = PROGRAM.map(function (d) { return d.id; }); // index 0 = Monday
+      function isOff(dayId) { return dayId === OFF_ID; }
+      function isValidDayId(dayId) { return dayId === OFF_ID || !!PROGRAM.find(function (d) { return d.id === dayId; }); }
+
+      function exKey(name) { return name.toLowerCase().replace(/\s+/g, " ").trim(); }
+
+      /* Library: unique moves across all seven days, first occurrence is canonical. */
+      var LIB = {};
+      var LIB_ORDER = [];
+      PROGRAM.forEach(function (day) {
+        day.exercises.forEach(function (ex) {
+          var k = exKey(ex.name);
+          if (!LIB[k]) {
+            LIB[k] = { key: k, name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle, days: [] };
+            LIB_ORDER.push(k);
+          }
+          if (LIB[k].days.indexOf(day.name) === -1) LIB[k].days.push(day.name);
+        });
+      });
+
+      function defaultSlots(dayId) {
+        if (isOff(dayId) || !DAY_BY_ID[dayId] || !DAY_BY_ID[dayId].exercises) return [];
+        return DAY_BY_ID[dayId].exercises.map(function (ex) {
+          return { key: exKey(ex.name), name: ex.name, sets: ex.sets, reps: ex.reps, muscle: ex.muscle };
+        });
+      }
+      function ensureSlots(dayId) {
+        if (isOff(dayId)) return [];
+        if (!state.days[dayId]) {
+          state.days[dayId] = defaultSlots(dayId);
+        }
+        // Return a shallow copy of the array with copied slot objects so edits are isolated
+        return state.days[dayId].map(function (s) {
+          return { key: s.key, name: s.name, sets: s.sets, reps: s.reps, muscle: s.muscle };
+        });
+      }
+
+      /* ---------- Dates / week ---------- */
+      var WEEKDAYS = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
+      var WEEKDAYS_SHORT = ["Mon", "Tue", "Wed", "Thu", "Fri", "Sat", "Sun"];
+      function todayIdx() { return (new Date().getDay() + 6) % 7; } // 0 = Monday
+      function mondayKey() {
+        var d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - todayIdx());
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      }
+      function todayStr() {
+        var d = new Date();
+        return d.getFullYear() + "-" + String(d.getMonth() + 1).padStart(2, "0") + "-" + String(d.getDate()).padStart(2, "0");
+      }
+      function weekLabel() {
+        var d = new Date();
+        d.setHours(0, 0, 0, 0);
+        d.setDate(d.getDate() - todayIdx());
+        return "Week of " + d.toLocaleDateString(undefined, { month: "long", day: "numeric" });
+      }
+
+      /* ---------- State (localStorage) ---------- */
+      var LS_KEY = "workout-tracker-v1";
+      var state = {
+        schedule: DEFAULT_SCHEDULE.slice(),
+        days: {},        // dayId -> swapped slot list (only days the user changed)
+        weekKey: mondayKey(),
+        done: {},        // dayId -> { "slotIdx:exKey": [bool, ...] }
+        weights: {},     // dayId -> { "slotIdx:exKey": [string, ...] }
+        lastWeights: {}, // exKey -> [string, ...] last weight logged per set
+        weightHistory: {}, // exKey -> { weekKey: [string, ...] } weights logged per week, last 8 weeks kept
+        weightLog: {}    // exKey -> [{ d: "YYYY-MM-DD", w: [string, ...] }] dated sessions, ascending, last 60 kept
+      };
+      function save() {
+        try { localStorage.setItem(LS_KEY, JSON.stringify(state)); } catch (e) { /* storage unavailable */ }
+      }
+      function load() {
+        try {
+          var raw = localStorage.getItem(LS_KEY);
+          if (!raw) return;
+          var s = JSON.parse(raw);
+          if (s && typeof s === "object") {
+            if (Array.isArray(s.schedule) && s.schedule.length === 7 && s.schedule.every(isValidDayId)) state.schedule = s.schedule;
+            if (s.days && typeof s.days === "object") state.days = s.days;
+            if (s.lastWeights && typeof s.lastWeights === "object") state.lastWeights = s.lastWeights;
+            if (s.weightHistory && typeof s.weightHistory === "object") state.weightHistory = s.weightHistory;
+            if (s.weightLog && typeof s.weightLog === "object") state.weightLog = s.weightLog;
+            if (s.weekKey === state.weekKey) {
+              if (s.done && typeof s.done === "object") state.done = s.done;
+              if (s.weights && typeof s.weights === "object") state.weights = s.weights;
+            }
+          }
+        } catch (e) { /* start fresh */ }
+      }
+      load();
+      // Seed the dated log from any week-based history saved by earlier versions,
+      // so weights logged before the dated log existed still show in History.
+      (function seedWeightLog() {
+        Object.keys(state.weightHistory || {}).forEach(function (k) {
+          if (Array.isArray(state.weightLog[k]) && state.weightLog[k].length) return;
+          var hist = state.weightHistory[k];
+          if (!hist || typeof hist !== "object") return;
+          var entries = Object.keys(hist).sort().map(function (wk) {
+            return { d: wk, w: Array.isArray(hist[wk]) ? hist[wk].slice() : [] };
+          }).filter(function (e) { return cleanWeights(e.w).length; });
+          if (entries.length) state.weightLog[k] = entries;
+        });
+      })();
+      save(); // persists a fresh week rollover
+
+      function slotsFor(dayId) {
+        if (isOff(dayId)) return [];
+        return state.days[dayId] || defaultSlots(dayId);
+      }
+      function slotId(slotIdx, key) { return slotIdx + ":" + key; }
+      function doneArr(dayId, sIdx, key, sets) {
+        var d = state.done[dayId] || {};
+        var a = d[slotId(sIdx, key)];
+        if (!Array.isArray(a)) a = [];
+        // Truncate if sets were reduced, pad if increased — sets are independent of stored checks beyond length
+        if (a.length > sets) a = a.slice(0, sets);
+        while (a.length < sets) a.push(false);
+        return a;
+      }
+      function weightVal(dayId, sIdx, key, setIdx) {
+        var w = (state.weights[dayId] || {})[slotId(sIdx, key)];
+        if (Array.isArray(w) && w[setIdx] !== undefined && w[setIdx] !== null) return w[setIdx];
+        var lw = state.lastWeights[key];
+        if (Array.isArray(lw) && lw.length) {
+          if (lw[setIdx]) return lw[setIdx];
+          for (var i = lw.length - 1; i >= 0; i--) if (lw[i]) return lw[i];
+        }
+        return "";
+      }
+      function cleanWeights(arr) {
+        if (!Array.isArray(arr)) return [];
+        return arr.map(function (v) { return String(v == null ? "" : v).trim(); }).filter(function (v) { return v !== ""; });
+      }
+      function topWeight(arr) {
+        var best = null;
+        cleanWeights(arr).forEach(function (v) {
+          var n = parseFloat(v);
+          if (!isNaN(n) && (best === null || n > best)) best = n;
+        });
+        return best;
+      }
+      function prevSessionWeights(key) {
+        var log = state.weightLog[key];
+        if (Array.isArray(log) && log.length) {
+          var today = todayStr();
+          for (var i = log.length - 1; i >= 0; i--) {
+            if (!log[i] || log[i].d >= today) continue;
+            var vals = cleanWeights(log[i].w);
+            if (vals.length) return vals;
+          }
+        }
+        var hist = state.weightHistory[key];
+        if (!hist || typeof hist !== "object") return null;
+        var weeks = Object.keys(hist).filter(function (w) { return w !== state.weekKey; }).sort();
+        for (var j = weeks.length - 1; j >= 0; j--) {
+          var wvals = cleanWeights(hist[weeks[j]]);
+          if (wvals.length) return wvals;
+        }
+        return null;
+      }
+      function recordWeightLog(key, wArr) {
+        var snap = (Array.isArray(wArr) ? wArr : []).map(function (v) { return String(v == null ? "" : v).trim(); });
+        var log = state.weightLog[key];
+        if (!Array.isArray(log)) log = [];
+        var t = todayStr();
+        var idx = -1;
+        for (var i = 0; i < log.length; i++) { if (log[i] && log[i].d === t) { idx = i; break; } }
+        if (snap.some(function (v) { return v !== ""; })) {
+          if (idx >= 0) log[idx].w = snap; else log.push({ d: t, w: snap });
+        } else if (idx >= 0) {
+          log.splice(idx, 1);
+        }
+        log.sort(function (a, b) { return a.d < b.d ? -1 : a.d > b.d ? 1 : 0; });
+        while (log.length > 60) log.shift();
+        state.weightLog[key] = log;
+      }
+      function dayProgress(dayId) {
+        if (isOff(dayId)) return { done: 0, total: 0 };
+        var slots = slotsFor(dayId);
+        var total = 0, done = 0;
+        slots.forEach(function (slot, i) {
+          total += slot.sets;
+          doneArr(dayId, i, slot.key, slot.sets).forEach(function (b) { if (b) done++; });
+        });
+        return { done: done, total: total };
+      }
+
+      /* ---------- Rendering ---------- */
+      var selWeekday = todayIdx();
+      var stripEl = document.getElementById("strip");
+      var panelEl = document.getElementById("dayPanel");
+
+      function esc(s) {
+        return String(s).replace(/[&<>"']/g, function (c) {
+          return { "&": "&amp;", "<": "&lt;", ">": "&gt;", '"': "&quot;", "'": "&#39;" }[c];
+        });
+      }
+
+      function renderSummary() {
+        var total = 0, done = 0;
+        var offCount = 0;
+        state.schedule.forEach(function (dayId) {
+          if (isOff(dayId)) { offCount++; return; }
+          var p = dayProgress(dayId);
+          total += p.total; done += p.done;
+        });
+        var pct = total ? Math.round((done / total) * 100) : 0;
+        document.getElementById("weekLabel").textContent = weekLabel();
+        document.getElementById("weekPct").textContent = pct + "%";
+        var countsText = done + " of " + total + " sets done this week";
+        if (offCount) countsText += " · " + offCount + (offCount === 1 ? " rest day" : " rest days");
+        if (!total) countsText = "No workouts scheduled this week";
+        document.getElementById("weekCounts").textContent = countsText;
+        document.getElementById("weekBar").style.width = pct + "%";
+      }
+
+      function renderStrip() {
+        stripEl.innerHTML = "";
+        state.schedule.forEach(function (dayId, wd) {
+          var off = isOff(dayId);
+          var p = off ? { done: 0, total: 0 } : dayProgress(dayId);
+          var pct = p.total ? Math.round((p.done / p.total) * 100) : 0;
+          var cell = document.createElement("button");
+          cell.type = "button";
+          cell.className = "cell" + (wd === todayIdx() ? " today" : "") + (wd === selWeekday ? " selected" : "") + (p.total && p.done === p.total ? " complete" : "") + (off ? " off" : "");
+          cell.setAttribute("aria-label", WEEKDAYS[wd] + ": " + (off ? "Off, rest day" : DAY_BY_ID[dayId].name));
+          cell.innerHTML =
+            '<span class="wd">' + WEEKDAYS_SHORT[wd] + "</span>" +
+            '<span class="dn">' + esc(off ? "Off" : DAY_BY_ID[dayId].name) + "</span>" +
+            '<span class="dp">' + (off ? "Rest" : (p.total && p.done === p.total ? "Done" : pct + "%")) + "</span>";
+          cell.addEventListener("click", function () {
+            selWeekday = wd;
+            renderStrip();
+            renderDay();
+          });
+          stripEl.appendChild(cell);
+        });
+      }
+
+      function renderDay() {
+        var dayId = state.schedule[selWeekday];
+        if (isOff(dayId)) {
+          var offHtml = "";
+          offHtml += '<div class="day-head"><div>' +
+            "<h2>" + esc(WEEKDAYS[selWeekday]) + ": Off</h2>" +
+            '<div class="focus">Rest day</div>' +
+            "</div>" +
+            '<div class="day-progress">No workout</div></div>';
+          offHtml += '<div class="rest-panel"><p class="rest-title">Rest day</p>' +
+            '<p class="rest-sub">No workout scheduled for ' + esc(WEEKDAYS[selWeekday]) + '. Recovery counts. Change this anytime in the weekly schedule.</p>' +
+            '<button class="rest-action" id="openSchedFromRest" type="button">Edit weekly schedule</button></div>';
+          panelEl.innerHTML = offHtml;
+          var osBtn = document.getElementById("openSchedFromRest");
+          if (osBtn) osBtn.addEventListener("click", function () {
+            if (schedPanel.hidden) schedBtn.click();
+            schedPanel.scrollIntoView({ behavior: "smooth", block: "start" });
+          });
+          return;
+        }
+        var day = DAY_BY_ID[dayId];
+        var slots = slotsFor(dayId);
+        var p = dayProgress(dayId);
+        var html = "";
+        html += '<div class="day-head"><div>' +
+          "<h2>" + esc(WEEKDAYS[selWeekday]) + ": " + esc(day.name) + "</h2>" +
+          '<div class="focus">' + esc(day.focus) + "</div>" +
+          (state.days[dayId] ? '<button class="reset-day" id="resetDayBtn" type="button">Reset day to original moves, sets &amp; reps</button>' : "") +
+          "</div>" +
+          '<div class="day-progress">' + p.done + " / " + p.total + " sets</div></div>";
+
+        slots.forEach(function (slot, i) {
+          var done = doneArr(dayId, i, slot.key, slot.sets);
+          var prevW = prevSessionWeights(slot.key);
+          html += '<article class="ex">' +
+            '<div class="ex-top"><div>' +
+            '<div class="ex-name">' + esc(slot.name) + "</div>" +
+            '<div class="ex-meta"><span>' + slot.sets + " sets × " + esc(slot.reps) + '</span><span class="tag">' + esc(slot.muscle) + "</span></div>" +
+            "</div>" +
+            '<div class="ex-actions"><button class="edit-btn" type="button" data-edit="' + i + '">Edit</button>' +
+            '<button class="hist-btn" type="button" data-history="' + i + '">History</button>' +
+            '<button class="swap-btn" type="button" data-swap="' + i + '">Swap</button></div>' +
+            "</div>" +
+            (prevW ? '<div class="last-line">Last time: <strong>' + esc(prevW.join(" · ")) + " lb</strong></div>" : "") +
+            '<div class="sets">';
+          for (var s = 0; s < slot.sets; s++) {
+            var isDone = !!done[s];
+            var w = weightVal(dayId, i, slot.key, s);
+            html += '<div class="set' + (isDone ? " done" : "") + '">' +
+              '<button class="set-toggle" type="button" data-toggle="' + i + ":" + s + '" aria-pressed="' + isDone + '" aria-label="Set ' + (s + 1) + " done\">" +
+              '<span class="box"><svg width="13" height="13" viewBox="0 0 12 12" fill="none" aria-hidden="true"><path d="M2 6.5 4.8 9 10 3" stroke="currentColor" stroke-width="2.2" stroke-linecap="round" stroke-linejoin="round"/></svg></span>' +
+              '<span class="set-num">Set ' + (s + 1) + "</span></button>" +
+              '<div class="w-wrap"><input class="w-input" type="text" inputmode="decimal" autocomplete="off" placeholder="Add" ' +
+              'data-weight="' + i + ":" + s + '" value="' + esc(w) + '" aria-label="Weight for set ' + (s + 1) + ' of ' + esc(slot.name) + '" /><span class="w-unit">lb</span></div>' +
+              "</div>";
+          }
+          html += "</div></article>";
+        });
+        panelEl.innerHTML = html;
+
+        var rb = document.getElementById("resetDayBtn");
+        if (rb) rb.addEventListener("click", function () {
+          delete state.days[dayId];
+          save();
+          renderAll();
+        });
+      }
+
+      function renderSchedule() {
+        var rows = document.getElementById("schedRows");
+        rows.innerHTML = "";
+        WEEKDAYS.forEach(function (wdName, wd) {
+          var row = document.createElement("div");
+          row.className = "sched-row";
+          var label = document.createElement("span");
+          label.className = "wd-name" + (wd === todayIdx() ? " today" : "");
+          label.textContent = wdName + (wd === todayIdx() ? " (today)" : "");
+          var sel = document.createElement("select");
+          sel.setAttribute("aria-label", "Training day for " + wdName);
+          // Off option first
+          var offOpt = document.createElement("option");
+          offOpt.value = OFF_ID;
+          offOpt.textContent = "Off — Rest day";
+          if (state.schedule[wd] === OFF_ID) offOpt.selected = true;
+          sel.appendChild(offOpt);
+          PROGRAM.forEach(function (d) {
+            var opt = document.createElement("option");
+            opt.value = d.id;
+            opt.textContent = d.name;
+            if (state.schedule[wd] === d.id) opt.selected = true;
+            sel.appendChild(opt);
+          });
+          sel.addEventListener("change", function () {
+            var newDay = sel.value;
+            var cur = state.schedule[wd];
+            if (newDay === cur) return;
+            if (isOff(newDay)) {
+              // Multiple Off days allowed — no swap
+              state.schedule[wd] = OFF_ID;
+            } else {
+              var other = state.schedule.indexOf(newDay);
+              state.schedule[wd] = newDay;
+              if (other !== -1) state.schedule[other] = cur;
+            }
+            save();
+            renderAll();
+            renderSchedule();
+          });
+          row.appendChild(label);
+          row.appendChild(sel);
+          rows.appendChild(row);
+        });
+      }
+
+      function renderAll() {
+        renderSummary();
+        renderStrip();
+        renderDay();
+      }
+
+      /* ---------- Day panel interactions (delegated) ---------- */
+      panelEl.addEventListener("click", function (ev) {
+        var t = ev.target.closest("[data-toggle]");
+        if (t) {
+          var dayId = state.schedule[selWeekday];
+          if (isOff(dayId)) return;
+          var parts = t.getAttribute("data-toggle").split(":");
+          var sIdx = parseInt(parts[0], 10), setIdx = parseInt(parts[1], 10);
+          var slot = slotsFor(dayId)[sIdx];
+          var arr = doneArr(dayId, sIdx, slot.key, slot.sets);
+          arr[setIdx] = !arr[setIdx];
+          if (!state.done[dayId]) state.done[dayId] = {};
+          state.done[dayId][slotId(sIdx, slot.key)] = arr;
+          save();
+          renderAll();
+          return;
+        }
+        var ed = ev.target.closest("[data-edit]");
+        if (ed) { openEdit(parseInt(ed.getAttribute("data-edit"), 10)); return; }
+        var hs = ev.target.closest("[data-history]");
+        if (hs) { openHistory(parseInt(hs.getAttribute("data-history"), 10)); return; }
+        var sw = ev.target.closest("[data-swap]");
+        if (sw) openSwap(parseInt(sw.getAttribute("data-swap"), 10));
+      });
+
+      panelEl.addEventListener("input", function (ev) {
+        var inp = ev.target.closest("[data-weight]");
+        if (!inp) return;
+        var dayId = state.schedule[selWeekday];
+        if (isOff(dayId)) return;
+        var parts = inp.getAttribute("data-weight").split(":");
+        var sIdx = parseInt(parts[0], 10), setIdx = parseInt(parts[1], 10);
+        var slot = slotsFor(dayId)[sIdx];
+        var val = inp.value.trim();
+        if (!state.weights[dayId]) state.weights[dayId] = {};
+        var wArr = state.weights[dayId][slotId(sIdx, slot.key)];
+        if (!Array.isArray(wArr)) wArr = [];
+        while (wArr.length < slot.sets) wArr.push("");
+        wArr[setIdx] = val;
+        state.weights[dayId][slotId(sIdx, slot.key)] = wArr;
+        if (val) {
+          var lw = state.lastWeights[slot.key];
+          if (!Array.isArray(lw)) lw = [];
+          while (lw.length < slot.sets) lw.push("");
+          lw[setIdx] = val;
+          state.lastWeights[slot.key] = lw;
+          var hist = state.weightHistory[slot.key];
+          if (!hist || typeof hist !== "object") hist = {};
+          hist[state.weekKey] = lw.slice();
+          var wk = Object.keys(hist).sort();
+          while (wk.length > 8) { delete hist[wk.shift()]; }
+          state.weightHistory[slot.key] = hist;
+        }
+        recordWeightLog(slot.key, wArr);
+        save();
+      });
+
+      /* ---------- Swap sheet ---------- */
+      var overlay = document.getElementById("overlay");
+      var swapCtx = null;
+      function openSwap(slotIdx) {
+        var dayId = state.schedule[selWeekday];
+        var slot = slotsFor(dayId)[slotIdx];
+        swapCtx = { dayId: dayId, slotIdx: slotIdx };
+        document.getElementById("sheetTitle").textContent = "Swap: " + slot.name;
+        document.getElementById("sheetSub").textContent = "Same muscle group (" + slot.muscle + ") from your full library. The new move brings its own sets and reps, and you can Edit them after swapping.";
+        var opts = document.getElementById("sheetOpts");
+        opts.innerHTML = "";
+        LIB_ORDER.forEach(function (k) {
+          var lib = LIB[k];
+          if (lib.muscle !== slot.muscle || k === slot.key) return;
+          var b = document.createElement("button");
+          b.type = "button";
+          b.className = "opt";
+          b.innerHTML = '<span><span class="o-name">' + esc(lib.name) + '</span><div class="o-meta">' +
+            lib.sets + " sets × " + esc(lib.reps) + " · from " + esc(lib.days.join(", ")) + "</div></span>" +
+            '<span class="tag">' + esc(lib.muscle) + "</span>";
+          b.addEventListener("click", function () {
+            var slots = ensureSlots(swapCtx.dayId);
+            slots[swapCtx.slotIdx] = { key: lib.key, name: lib.name, sets: lib.sets, reps: lib.reps, muscle: lib.muscle };
+            state.days[swapCtx.dayId] = slots;
+            save();
+            closeSwap();
+            renderAll();
+          });
+          opts.appendChild(b);
+        });
+        if (!opts.children.length) {
+          opts.innerHTML = '<p class="sub">No other ' + esc(slot.muscle) + " moves in your library yet.</p>";
+        }
+        overlay.hidden = false;
+      }
+      function closeSwap() { overlay.hidden = true; swapCtx = null; }
+      document.getElementById("sheetCancel").addEventListener("click", closeSwap);
+      overlay.addEventListener("click", function (ev) { if (ev.target === overlay) closeSwap(); });
+
+      /* ---------- Edit sets & reps sheet ---------- */
+      var editOverlay = document.getElementById("editOverlay");
+      var editCtx = null;
+      var editSetsInput = document.getElementById("editSets");
+      var editRepsInput = document.getElementById("editReps");
+      function openEdit(slotIdx) {
+        var dayId = state.schedule[selWeekday];
+        if (isOff(dayId)) return;
+        var slot = slotsFor(dayId)[slotIdx];
+        if (!slot) return;
+        editCtx = { dayId: dayId, slotIdx: slotIdx };
+        document.getElementById("editTitle").textContent = "Edit: " + slot.name;
+        document.getElementById("editSub").textContent = DAY_BY_ID[dayId].name + " · " + slot.muscle + " · This edit applies only to this move on this day.";
+        editSetsInput.value = slot.sets;
+        editRepsInput.value = slot.reps;
+        editOverlay.hidden = false;
+        // Focus sets for quick editing
+        setTimeout(function () { try { editSetsInput.focus(); editSetsInput.select(); } catch (e) {} }, 50);
+      }
+      function closeEdit() { editOverlay.hidden = true; editCtx = null; }
+      function clampSets(v) {
+        var n = parseInt(v, 10);
+        if (isNaN(n)) n = 1;
+        if (n < 1) n = 1;
+        if (n > 20) n = 20;
+        return n;
+      }
+      document.getElementById("setsMinus").addEventListener("click", function () {
+        editSetsInput.value = clampSets(editSetsInput.value) - 1 < 1 ? 1 : clampSets(editSetsInput.value) - 1;
+      });
+      document.getElementById("setsPlus").addEventListener("click", function () {
+        editSetsInput.value = clampSets(editSetsInput.value) + 1 > 20 ? 20 : clampSets(editSetsInput.value) + 1;
+      });
+      document.getElementById("editCancel").addEventListener("click", closeEdit);
+      editOverlay.addEventListener("click", function (ev) { if (ev.target === editOverlay) closeEdit(); });
+      document.getElementById("editSave").addEventListener("click", function () {
+        if (!editCtx) return;
+        var newSets = clampSets(editSetsInput.value);
+        var newReps = editRepsInput.value.trim();
+        var currentSlots = ensureSlots(editCtx.dayId);
+        var cur = currentSlots[editCtx.slotIdx];
+        if (!cur) { closeEdit(); return; }
+        if (!newReps) newReps = cur.reps;
+        // Independent assignment: sets and reps stored separately on this slot only
+        cur.sets = newSets;
+        cur.reps = newReps;
+        currentSlots[editCtx.slotIdx] = cur;
+        state.days[editCtx.dayId] = currentSlots;
+        // If sets shrank, trim stored done/weights for this slot so progress stays accurate
+        var sid = slotId(editCtx.slotIdx, cur.key);
+        if (state.done[editCtx.dayId] && Array.isArray(state.done[editCtx.dayId][sid])) {
+          state.done[editCtx.dayId][sid] = state.done[editCtx.dayId][sid].slice(0, newSets);
+        }
+        if (state.weights[editCtx.dayId] && Array.isArray(state.weights[editCtx.dayId][sid])) {
+          // Keep weights array as-is beyond length is harmless, but trim display consistency by leaving extra; rendering only uses first newSets
+        }
+        save();
+        closeEdit();
+        renderAll();
+      });
+
+      /* ---------- Weight history sheet ---------- */
+      var historyOverlay = document.getElementById("historyOverlay");
+      function fmtNum(n) { return String(Math.round(n * 100) / 100); }
+      function fmtDate(ds) {
+        var p = String(ds).split("-");
+        var dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+        if (isNaN(dt.getTime())) return String(ds);
+        return dt.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric", year: "numeric" });
+      }
+      function shortDate(ds) {
+        var p = String(ds).split("-");
+        var dt = new Date(parseInt(p[0], 10), parseInt(p[1], 10) - 1, parseInt(p[2], 10));
+        if (isNaN(dt.getTime())) return String(ds);
+        return dt.toLocaleDateString(undefined, { month: "short", day: "numeric" });
+      }
+      function chartSvg(log, tops) {
+        var pts = [];
+        log.forEach(function (e, i) { if (tops[i] !== null) pts.push({ d: e.d, v: tops[i] }); });
+        if (pts.length < 2) return "";
+        var W = 320, H = 136, padL = 24, padR = 24, padT = 20, padB = 24;
+        var vs = pts.map(function (p) { return p.v; });
+        var min = Math.min.apply(null, vs), max = Math.max.apply(null, vs);
+        var range = max - min;
+        if (range < 10) { min = Math.max(0, min - (10 - range) / 2); max = min + 10; range = 10; }
+        else { min = Math.max(0, min - range * 0.12); max = max + range * 0.12; range = max - min; }
+        function X(i) { return padL + (W - padL - padR) * (i / (pts.length - 1)); }
+        function Y(v) { return padT + (H - padT - padB) * (1 - (v - min) / range); }
+        var line = pts.map(function (p, i) { return (i ? "L" : "M") + X(i).toFixed(1) + " " + Y(p.v).toFixed(1); }).join(" ");
+        var dots = pts.map(function (p, i) {
+          return '<circle class="dot" cx="' + X(i).toFixed(1) + '" cy="' + Y(p.v).toFixed(1) + '" r="3.5" />';
+        }).join("");
+        var first = pts[0], last = pts[pts.length - 1];
+        var trend = last.v > first.v ? "rose" : last.v < first.v ? "fell" : "held steady";
+        var aria = "Top weight per session " + trend + " from " + fmtNum(first.v) + " lb on " + fmtDate(first.d) +
+          " to " + fmtNum(last.v) + " lb on " + fmtDate(last.d) + ".";
+        return '<svg class="chart" viewBox="0 0 ' + W + " " + H + '" role="img" aria-label="' + esc(aria) + '">' +
+          '<path class="line" d="' + line + '" />' + dots +
+          '<text class="cval" x="' + X(0).toFixed(1) + '" y="' + (Y(first.v) - 8).toFixed(1) + '" text-anchor="middle">' + fmtNum(first.v) + "</text>" +
+          '<text class="cval" x="' + X(pts.length - 1).toFixed(1) + '" y="' + (Y(last.v) - 8).toFixed(1) + '" text-anchor="middle">' + fmtNum(last.v) + "</text>" +
+          '<text class="clabel" x="' + X(0).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(shortDate(first.d)) + "</text>" +
+          '<text class="clabel" x="' + X(pts.length - 1).toFixed(1) + '" y="' + (H - 6) + '" text-anchor="middle">' + esc(shortDate(last.d)) + "</text>" +
+          "</svg>";
+      }
+      function sessionList(log, tops) {
+        var html = '<div class="hist-list">';
+        for (var i = log.length - 1; i >= 0; i--) {
+          html += '<div class="hist-row"><div class="hist-date">' + esc(fmtDate(log[i].d)) + "</div>" +
+            '<div class="hist-vals">' + esc(cleanWeights(log[i].w).join(" · ")) + " lb</div>" +
+            (tops[i] !== null ? '<div class="hist-top">Top set ' + fmtNum(tops[i]) + " lb</div>" : "") +
+            "</div>";
+        }
+        return html + "</div>";
+      }
+      function openHistory(slotIdx) {
+        var dayId = state.schedule[selWeekday];
+        if (isOff(dayId)) return;
+        var slot = slotsFor(dayId)[slotIdx];
+        if (!slot) return;
+        document.getElementById("histTitle").textContent = "History: " + slot.name;
+        var log = (Array.isArray(state.weightLog[slot.key]) ? state.weightLog[slot.key] : [])
+          .filter(function (e) { return e && cleanWeights(e.w).length; });
+        var body = document.getElementById("histBody");
+        if (!log.length) {
+          document.getElementById("histSub").textContent = slot.muscle + " · No weights logged yet";
+          body.innerHTML = '<p class="hist-empty">No weights logged for this move yet. Type a weight into any set box and it is saved here with the date, so you can watch the numbers climb over time.</p>';
+        } else {
+          var tops = log.map(function (e) { return topWeight(e.w); });
+          var best = null;
+          tops.forEach(function (t) { if (t !== null && (best === null || t > best)) best = t; });
+          document.getElementById("histSub").textContent = slot.muscle + " · " + log.length +
+            (log.length === 1 ? " session" : " sessions") + (best !== null ? " · Best top set " + fmtNum(best) + " lb" : "");
+          body.innerHTML = (tops.filter(function (t) { return t !== null; }).length >= 2
+            ? '<div class="chart-label">Top weight per session (lb)</div>' + chartSvg(log, tops) : "") +
+            sessionList(log, tops);
+        }
+        historyOverlay.hidden = false;
+      }
+      function closeHistory() { historyOverlay.hidden = true; }
+      document.getElementById("histClose").addEventListener("click", closeHistory);
+      historyOverlay.addEventListener("click", function (ev) { if (ev.target === historyOverlay) closeHistory(); });
+
+      /* ---------- Schedule + reset controls ---------- */
+      var schedPanel = document.getElementById("schedulePanel");
+      var schedBtn = document.getElementById("schedBtn");
+      schedBtn.addEventListener("click", function () {
+        var opening = schedPanel.hidden;
+        schedPanel.hidden = !opening;
+        schedBtn.textContent = opening ? "Hide weekly schedule" : "Edit weekly schedule";
+        if (opening) renderSchedule();
+      });
+      document.getElementById("schedReset").addEventListener("click", function () {
+        state.schedule = DEFAULT_SCHEDULE.slice();
+        save();
+        renderAll();
+        renderSchedule();
+      });
+
+      var resetWeekBtn = document.getElementById("resetWeekBtn");
+      var armed = false, armTimer = null;
+      resetWeekBtn.addEventListener("click", function () {
+        if (!armed) {
+          armed = true;
+          resetWeekBtn.textContent = "Tap again to clear this week";
+          resetWeekBtn.classList.add("danger-armed");
+          armTimer = setTimeout(function () {
+            armed = false;
+            resetWeekBtn.textContent = "Reset this week";
+            resetWeekBtn.classList.remove("danger-armed");
+          }, 3500);
+          return;
+        }
+        clearTimeout(armTimer);
+        armed = false;
+        resetWeekBtn.textContent = "Reset this week";
+        resetWeekBtn.classList.remove("danger-armed");
+        state.done = {};
+        state.weights = {};
+        save();
+        renderAll();
+      });
+
+      renderAll();
+    </script>
+  </body>
+</html>
